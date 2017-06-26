@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Symbols relating to GCN controllers -->
+<symbols>
+    <symbol name="PADInit" size="0x15c" offset="0x114">
+        <data>
+            64074d00 64054d40 64034d80 64004dc0
+        </data>
+    </symbol>
+    <!-- a new version of PADRead changes much -->
+    <symbol name="PADRead" size="0x2e0" offset="0x5c" >
+        <data>
+            4e800421 a0130000 540004a5 41820040
+        </data>
+    </symbol>
+    <symbol name="PADRead" size="0x4bc" offset="0x258" >
+        <data>
+            4e800421 80170000 5403001e 3c03f700
+        </data>
+    </symbol>
+    <symbol name="PADControlMotor" size="0xb8" offset="0x64" >
+        <data>
+            3c608000 880330e3 540006b5 41820008
+        </data>
+    </symbol>
+</symbols>
