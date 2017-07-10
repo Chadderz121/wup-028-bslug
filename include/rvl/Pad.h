@@ -37,7 +37,7 @@ void PADRead(PADData_t *result);
 void PADControlMotor(int pad, int control);
 
 #define PADData_ERROR_NONE 0
-#define PADData_ERROR_1 -1
+#define PADData_ERROR_NO_CONNECTION -1
 #define PADData_ERROR_2 -2
 #define PADData_ERROR_3 -3
 
