@@ -1,0 +1,7 @@
+WUP-028 adapter BrainSlug module
+ by Alex "Chadderz" Chadwick
+
+This repository contains a BrainSlug module to allow support for the WUP-028 GCN
+controller to USB adapter to arbitrary Wii games. At the time of writing I don't
+quite recall what state it is in, other than that it basically works. To compile
+you will first need to install BrainSlug (though not necessarily compile it).
