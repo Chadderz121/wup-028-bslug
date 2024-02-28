@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- pad.xml version for Fire Emblem: Radiant Dawn (and possibly other games) -->
+<!-- Confirmed working on PAL and JPN (RFEP01, RFEJ01) -->
+<!-- Simply use this file instead of pad.xml in bslug/symbols -->
+<!-- Symbols relating to GCN controllers -->
+<symbols>
+    <symbol name="PADInit" size="0x15c" offset="0x114">
+        <data>
+            64074d00 64054d40 64034d80 64004dc0
+        </data>
+    </symbol>
+    <symbol name="PADRead" size="0x2e0" offset="0x24c" >
+        <data>
+            4e800421 a0130000 540004a5 41820040
+        </data>
+    </symbol>
+    <symbol name="PADControlMotor" size="0xb8" offset="0x64" >
+        <data>
+            3c608000 880330e3 540006b5 41820008
+        </data>
+    </symbol>
+</symbols>

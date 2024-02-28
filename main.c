@@ -114,6 +114,18 @@ static uint8_t poll_msg_buffer[-(-WUP_028_POLL_SIZE & ~0x1f)] IOS_ALIGN;
 static uint8_t rumble_msg_buffer[1 + GCN_CONTROLLER_COUNT] IOS_ALIGN =
   { WUP_028_CMD_RUMBLE };
 
+typedef struct {
+    int8_t init;
+    int8_t stickX;
+    int8_t stickY;
+    int8_t cStickX;
+    int8_t cStickY;
+    uint8_t analogL;
+    uint8_t analogR;
+} PadOrigin;
+
+static PadOrigin gcn_stick_origin[GCN_CONTROLLER_COUNT];
+
 /*============================================================================*/
 /* Top level interface to game */
 /*============================================================================*/
@@ -122,6 +134,11 @@ static uint32_t mftb(void);
 static uint32_t cpu_isr_disable(void);
 static void cpu_isr_restore(uint32_t isr);
 static void onDevOpen(ios_fd_t fd, usr_t unused);
+
+void padNoConnection(int i) {
+    gcn_data[i].error = PADData_ERROR_NO_CONNECTION;
+    gcn_stick_origin[i].init = 0;
+}
 
 static void myPADInit(void) {
   /* FIXME: Until we've killed all PAD methods, better init still. */
@@ -133,7 +150,7 @@ static void myPADRead(PADData_t result[GCN_CONTROLLER_COUNT]) {
     /* On first call only, initialise USB and globals. */
     started = 1;
     for (int i = 0; i < GCN_CONTROLLER_COUNT; i++)
-      gcn_data[i].error = PADData_ERROR_NO_CONNECTION;
+      padNoConnection(i);
     gcn_data_written = mftb();
     IOS_OpenAsync(DEV_USB_HID_PATH, 0, onDevOpen, NULL);
   }
@@ -141,10 +158,10 @@ static void myPADRead(PADData_t result[GCN_CONTROLLER_COUNT]) {
     /* On a USB error, disconnect all controllers. */
     errorMethod = -errorMethod;
     for (int i = 0; i < GCN_CONTROLLER_COUNT; i++)
-      gcn_data[i].error = PADData_ERROR_NO_CONNECTION;
+      padNoConnection(i);
   } else if (mftb() - gcn_data_written > GCN_TIMEOUT) {
     for (int i = 0; i < GCN_CONTROLLER_COUNT; i++)
-      gcn_data[i].error = PADData_ERROR_NO_CONNECTION;
+      padNoConnection(i);
   }
   for (int i = 0; i < GCN_CONTROLLER_COUNT; i++) {
     /* Copy last seen controller inputs. */
@@ -154,6 +171,7 @@ static void myPADRead(PADData_t result[GCN_CONTROLLER_COUNT]) {
   }
   cpu_isr_restore(isr);
 }
+
 static void myPADControlMotor(int pad, int control) {
   /* Check for valid pad. */
   if ((unsigned int)pad >= GCN_CONTROLLER_COUNT) return;
@@ -741,10 +759,28 @@ static void onDevUsbPoll(ios_ret_t ret, usr_t unused) {
       for (int i = 0; i < GCN_CONTROLLER_COUNT; i++) {
         uint8_t *data = poll_msg_buffer + (i * 9 + 1);
         if ((data[0] >> 4) != 1 && (data[0] >> 4) != 2) {
-          gcn_data[i].error = PADData_ERROR_NO_CONNECTION;
+          padNoConnection(i);
           continue;
         }
-        gcn_data[i].buttons =
+        PADData_t *out_data = &gcn_data[i];
+        PadOrigin *origin = &gcn_stick_origin[i];
+        int8_t stickX = data[3] - 128;
+        int8_t stickY = data[4] - 128;
+        int8_t cStickX = data[5] - 128;
+        int8_t cStickY = data[6] - 128;
+        uint8_t analogL = data[7];
+        uint8_t analogR = data[8];
+        if (!origin->init) {
+            // Use first input as origin
+            origin->stickX = stickX;
+            origin->stickY = stickY;
+            origin->cStickX = cStickX;
+            origin->cStickY = cStickY;
+            origin->analogL = analogL;
+            origin->analogR = analogR;
+            origin->init = 1;
+        }
+        out_data->buttons =
           ((data[1] >> 0) & 1 ? PADData_BUTTON_A : 0) |
           ((data[1] >> 1) & 1 ? PADData_BUTTON_B : 0) |
           ((data[1] >> 2) & 1 ? PADData_BUTTON_X : 0) |
@@ -755,17 +791,18 @@ static void onDevUsbPoll(ios_ret_t ret, usr_t unused) {
           ((data[1] >> 7) & 1 ? PADData_BUTTON_DU : 0) |
           ((data[2] >> 0) & 1 ? PADData_BUTTON_S : 0) |
           ((data[2] >> 1) & 1 ? PADData_BUTTON_Z : 0) |
-          (data[7] >= GCN_TRIGGER_THRESHOLD ? PADData_BUTTON_L : 0) |
-          (data[8] >= GCN_TRIGGER_THRESHOLD ? PADData_BUTTON_R : 0);
-        gcn_data[i].aStickX = data[3] - 128;
-        gcn_data[i].aStickY = data[4] - 128;
-        gcn_data[i].cStickX = data[5] - 128;
-        gcn_data[i].cStickY = data[6] - 128;
-        gcn_data[i].sliderL = data[7];
-        gcn_data[i].sliderR = data[8];
-        gcn_data[i]._unknown8 = 0;
-        gcn_data[i]._unknown9 = 0;
-        gcn_data[i].error = 0;
+          (analogL >= GCN_TRIGGER_THRESHOLD ? PADData_BUTTON_L : 0) |
+          (analogR >= GCN_TRIGGER_THRESHOLD ? PADData_BUTTON_R : 0);
+        out_data->aStickX = stickX - origin->stickX;
+        out_data->aStickY = stickY - origin->stickY;
+        out_data->cStickX = cStickX - origin->cStickX;
+        out_data->cStickY = cStickY - origin->cStickY;
+        // For analog L/R, use origin as minimum tilt to count as input
+        out_data->sliderL = analogL < origin->analogL ? 0 : analogL - origin->analogL;
+        out_data->sliderR = analogR < origin->analogR ? 0 : analogR - origin->analogR;
+        out_data->_unknown8 = 0;
+        out_data->_unknown9 = 0;
+        out_data->error = 0;
       }
       gcn_data_written = mftb();
       cpu_isr_restore(isr);
@@ -778,4 +815,3 @@ static void onDevUsbPoll(ios_ret_t ret, usr_t unused) {
     gcn_adapter_id = -1;
   }
 }
-
